@@ -1,0 +1,17 @@
+{
+  "name": "vela-notes",
+  "version": "1.0.0",
+  "description": "小米手环9 Pro/红米手表5 笔记应用（基于 Xiaomi Vela + ResonaUI + Vela_input_method）",
+  "engines": {
+    "node": ">=8.10"
+  },
+  "scripts": {
+    "start": "aiot start --watch",
+    "build": "aiot build",
+    "release": "aiot release"
+  },
+  "devDependencies": {
+    "@aiot-toolkit/jsc": "^1.0.3",
+    "aiot-toolkit": "^2.0.5"
+  }
+}
