@@ -1,0 +1,127 @@
+<script>
+import * as uiAdm from './common/js/uiAdm'
+import { getDeviceInfo } from './common/js/useful.js'
+import * as notesStore from './common/js/notesStore.js'
+
+export default {
+  timeUpdateTimer: null,
+
+  async onCreate() {
+    // 将常用模块挂载到 global，页面中通过 global.xxx 访问
+    global.uiAdm = uiAdm
+    global.notesStore = notesStore
+
+    uiAdm.initAdm()
+    // 页面过渡动画开关，默认关闭
+    global.AdmSet = 0
+
+    // 同步初始化全局变量默认值，避免页面 onInit 执行时出现 undefined
+    const now0 = new Date()
+    global.NowHour = now0.getHours().toString().padStart(2, '0')
+    global.NowMin = now0.getMinutes().toString().padStart(2, '0')
+    global.Screen = global.Screen || {
+      screenWidth: 0,
+      screenHeight: 0,
+      screenShape: 'rect'
+    }
+    uiAdm.UpdateTime(global.NowHour + ':' + global.NowMin)
+
+    await getDeviceInfo()
+    await notesStore.init()
+
+    this.updateTime()
+    this.timeUpdateTimer = setInterval(() => this.updateTime(), 1000)
+  },
+
+  updateTime() {
+    const now = new Date()
+    global.NowHour = now.getHours().toString().padStart(2, '0')
+    global.NowMin = now.getMinutes().toString().padStart(2, '0')
+    uiAdm.UpdateTime(global.NowHour + ':' + global.NowMin)
+  },
+
+  onDestroy() {
+    clearInterval(this.timeUpdateTimer)
+  }
+}
+</script>
+<style>
+/* 以下均为全局CSS，任何页面无需注册即可直接使用 */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+}
+.full-area {
+  flex-direction: column;
+  background-color: transparent;
+  width: 100%;
+  flex: 1;
+}
+.title {
+  font-size: 32px;
+  color: white;
+}
+.fs28 {
+  font-size: 28px;
+}
+.font-mini-b {
+  color: #e2e2e2;
+  font-size: 24px;
+}
+.center {
+  text-align: center;
+  align-items: center;
+}
+.img-sty {
+  object-fit: cover;
+}
+.h24 {
+  height: 24px;
+}
+.time {
+  width: 20px;
+  height: 34px;
+  font-size: 30px;
+  text-align: center;
+  color: #e2e2e2;
+  transform-origin: 10px 17px;
+}
+.fd {
+  flex-direction: column;
+}
+.fr {
+  flex-direction: row;
+}
+.wd100 {
+  width: 100%;
+}
+.jcsb {
+  justify-content: space-between;
+}
+/* 顶部栏：默认(方屏) 左右布局 */
+.header {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+}
+.bottomzw {
+  height: 50px;
+}
+@media screen and (shape: circle) {
+  .header {
+    flex-direction: column;
+    padding: 24px 20px 6px;
+  }
+}
+@media screen and (shape: rect) {
+  .header {
+    padding: 18px 52px 16px;
+  }
+}
+</style>
