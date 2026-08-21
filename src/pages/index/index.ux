@@ -1,0 +1,634 @@
+<template>
+  <div class="container" style="background-color: {{bgColor}};">
+    <!-- 顶部栏 -->
+    <div class="header" style="{{headerStyle}}">
+      <text class="title {{screenShape === 'pill-shaped' ? 'title-pill' : ''}}" style="color: {{bgTextColor}};">笔记</text>
+      <text class="title {{screenShape === 'pill-shaped' ? 'title-pill' : ''}}" style="color: {{bgTextColor}}; margin-left: auto;" @click="openSettings">{{NowTime}}</text>
+    </div>
+
+    <!-- 列表区域 -->
+    <div class="full-area center">
+      <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white;margin-top: 6px;">
+        <!-- 新建按钮 -->
+        <div class="create-btn center" @click="createNote">
+          <text class="create-icon">＋</text>
+          <text class="create-text">新建笔记</text>
+        </div>
+
+        <!-- 空状态 -->
+        <div if="{{!loading && notes.length === 0}}" class="empty center">
+          <text class="empty-text">还没有笔记</text>
+          <text class="empty-sub">点击上方创建第一篇</text>
+        </div>
+
+        <!-- 笔记列表 -->
+        <div class="note-item" for="{{(idx, note) in notes}}" tid="id">
+          <div class="note-main fd" @click="openNote(note.id)">
+            <div class="note-title" style="font-size: {{titleFontSize}}px; font-weight: {{titleFontWeight}};">
+              <div for="{{(si, seg) in note.titleSegments}}" style="flex-direction: row; align-items: center;">
+                <img if="{{seg.isEmoji}}" src="../../common/emoji/{{seg.code}}.png" style="width: {{titleEmojiSize}}px; height: {{titleEmojiSize}}px; margin: 0 1px;" />
+                <text if="{{!seg.isEmoji}}">{{seg.text}}</text>
+              </div>
+            </div>
+            <text if="{{note.preview}}" class="note-preview" style="font-size: {{previewFontSize}}px;">{{note.preview}}</text>
+            <text class="note-time" style="font-size: {{timeFontSize}}px;">{{note.timeText}}</text>
+          </div>
+          <text
+            class="note-del"
+            @click="openNoteDetail(note.id)"
+          >›</text>
+        </div>
+
+        <div class="bottomzw"></div>
+      </scroll>
+    </div>
+
+    <!-- 全局设置菜单 -->
+    <div if="{{showSettings}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header" style="{{headerStyle}}">
+        <text class="title" style="color: {{bgTextColor}};">设置</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeSettings">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="margin-top: 6px;">
+          <div class="menu-card" @click="openGlobalDisplay">
+            <text class="menu-icon">字</text>
+            <text class="menu-card-text">字号大小</text>
+            <text class="menu-icon" style="margin-left: auto; color: #9a9a9a;">›</text>
+          </div>
+          <div class="menu-card" @click="openGlobalBgColor">
+            <text class="menu-icon">背</text>
+            <text class="menu-card-text">背景颜色</text>
+            <text class="menu-icon" style="margin-left: auto; color: #9a9a9a;">›</text>
+          </div>
+          <div class="menu-card" @click="toggleAnimEnabled">
+            <text class="menu-icon">动</text>
+            <text class="menu-card-text">页面动画</text>
+            <text class="menu-card-text" style="margin-left: auto; color: #9a9a9a; font-weight: normal; font-size: 24px;">{{animEnabled ? '开启' : '关闭'}}</text>
+          </div>
+          <div class="menu-card" @click="openAbout">
+            <text class="menu-icon">关</text>
+            <text class="menu-card-text">关于</text>
+            <text class="menu-icon" style="margin-left: auto; color: #9a9a9a;">›</text>
+          </div>
+          <div class="menu-card" @click="closeSettings">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 全局字号设置 -->
+    <div if="{{showGlobalDisplay}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header" style="{{headerStyle}}">
+        <text class="title" style="color: {{bgTextColor}};">字号大小</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeGlobalDisplay">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="margin-top: 6px;">
+          <div class="menu-card {{gFontScale === 0.85 ? 'menu-card-title' : ''}}" @click="setGFontScale(0.85)">
+            <text class="menu-icon">小</text>
+            <text class="menu-card-text">小号</text>
+            <text if="{{gFontScale === 0.85}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card {{gFontScale === 1.0 ? 'menu-card-title' : ''}}" @click="setGFontScale(1.0)">
+            <text class="menu-icon">标</text>
+            <text class="menu-card-text">标准</text>
+            <text if="{{gFontScale === 1.0}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card {{gFontScale === 1.25 ? 'menu-card-title' : ''}}" @click="setGFontScale(1.25)">
+            <text class="menu-icon">大</text>
+            <text class="menu-card-text">大号</text>
+            <text if="{{gFontScale === 1.25}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card {{gFontScale === 1.5 ? 'menu-card-title' : ''}}" @click="setGFontScale(1.5)">
+            <text class="menu-icon">特</text>
+            <text class="menu-card-text">特大号</text>
+            <text if="{{gFontScale === 1.5}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card" @click="closeGlobalDisplay">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回设置</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 全局背景颜色设置 -->
+    <div if="{{showGlobalBgColor}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header" style="{{headerStyle}}">
+        <text class="title" style="color: {{bgTextColor}};">背景颜色</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeGlobalBgColor">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="margin-top: 6px;">
+          <div class="menu-card color-preview-card" style="background-color: {{gBgColor}};">
+            <text class="color-preview-label">当前背景</text>
+            <text class="color-preview-text" style="color: {{gBgTextColor}};">{{gBgColor}}</text>
+          </div>
+          <div class="color-grid">
+            <div
+              for="{{(i, c) in bgColors}}"
+              class="color-item {{tempGBgColor === c.value ? 'color-item-active' : ''}}"
+              style="background-color: {{c.value}};"
+              @click="selectGBgColor(c.value)"
+            >
+              <text if="{{tempGBgColor === c.value}}" class="color-check">✓</text>
+            </div>
+          </div>
+          <div class="menu-card menu-card-title" @click="confirmGBgColor">
+            <text class="menu-icon">✓</text>
+            <text class="menu-card-text">确认更换</text>
+          </div>
+          <div class="menu-card" @click="closeGlobalBgColor">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回设置</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 关于页面 -->
+    <div if="{{showAbout}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header" style="{{headerStyle}}">
+        <text class="title" style="color: {{bgTextColor}};">关于</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeAbout">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="margin-top: 6px;">
+          <div class="about-card">
+            <text class="about-label">创作者</text>
+            <text class="about-value" style="color: {{bgTextColor}};">小周</text>
+          </div>
+          <div class="about-card">
+            <text class="about-label">开源项目</text>
+            <div class="fd">
+              <text class="about-item" style="color: {{bgTextColor}};">ResonaUI</text>
+              <text class="about-url">github.com/B4QAQ/ResonaUI</text>
+              <text class="about-item" style="color: {{bgTextColor}};">Vela_input_method</text>
+              <text class="about-url">github.com/NEORUAA/Vela_input_method</text>
+              <text class="about-item" style="color: {{bgTextColor}};">Xiaomi Vela JS 应用框架</text>
+              <text class="about-url">iot.mi.com/vela/quickapp</text>
+            </div>
+          </div>
+          <div class="menu-card" @click="closeAbout">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回设置</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import prompt from '@system.prompt'
+import storage from '@system.storage'
+import { buildTitle, buildPreview, buildTitleSegments } from '../../common/js/notesStore.js'
+
+export default {
+  private: {
+    NowTime: '--:--',
+    notes: [],
+    loading: true,
+    scrclass: '',
+    screenShape: 'rect',
+    pendingDeleteId: null,
+    pendingDeleteStep: 0,
+    pendingDeleteTimer: null,
+    fontScale: 1.0,
+    bgColor: '#000000',
+    bgColors: [
+      { name: '纯黑', value: '#000000', text: '#ffffff' },
+      { name: '深灰', value: '#1a1a1a', text: '#ffffff' },
+      { name: '墨蓝', value: '#0d1b2a', text: '#ffffff' },
+      { name: '深绿', value: '#0d1f14', text: '#ffffff' },
+      { name: '深棕', value: '#1f1410', text: '#ffffff' },
+      { name: '深紫', value: '#1a0d1f', text: '#ffffff' },
+      { name: '酒红', value: '#2a0d12', text: '#ffffff' },
+      { name: '浅灰', value: '#2a2a2a', text: '#ffffff' },
+      { name: '米白', value: '#f5f0e6', text: '#1a1a1a' },
+      { name: '浅蓝', value: '#e6f0f5', text: '#1a1a1a' },
+      { name: '浅绿', value: '#e6f5ec', text: '#1a1a1a' },
+      { name: '浅粉', value: '#f5e6ec', text: '#1a1a1a' },
+    ],
+    showSettings: false,
+    showGlobalDisplay: false,
+    showGlobalBgColor: false,
+    showAbout: false,
+    gFontScale: 1.0,
+    gBgColor: '#000000',
+    tempGBgColor: '#000000',
+    animEnabled: false,
+  },
+
+  computed: {
+    titleFontSize() { return Math.round(28 * this.fontScale) },
+    titleEmojiSize() { return Math.round(30 * this.fontScale) },
+    previewFontSize() { return Math.round(22 * this.fontScale) },
+    timeFontSize() { return Math.round(20 * this.fontScale) },
+    bgTextColor() {
+      const c = this.bgColors.find(item => item.value === this.bgColor)
+      return c ? c.text : '#ffffff'
+    },
+    gBgTextColor() {
+      const c = this.bgColors.find(item => item.value === this.gBgColor)
+      return c ? c.text : '#ffffff'
+    },
+    headerStyle() {
+      return ''
+    },
+    titleFontWeight() {
+      return 'bold'
+    }
+  },
+
+  onInit() {
+    global.uiAdm.registerPage(this.$page.name, this)
+    this.screenShape = (global.Screen && global.Screen.screenShape) || 'rect'
+    const h = global.NowHour || '--'
+    const m = global.NowMin || '--'
+    this.NowTime = h + ':' + m
+    const self = this
+    storage.get({
+      key: 'gFontScale',
+      success: (data) => { self.fontScale = parseFloat(data) || 1.0; self.gFontScale = self.fontScale },
+      fail: () => {}
+    })
+    storage.get({
+      key: 'gBgColor',
+      success: (data) => { if (data) { self.bgColor = data; self.gBgColor = data } },
+      fail: () => {}
+    })
+    storage.get({
+      key: 'animEnabled',
+      success: (data) => { self.animEnabled = data === 'true' },
+      fail: () => {}
+    })
+  },
+
+  async onShow() {
+    await this.loadNotes()
+  },
+
+  async loadNotes() {
+    this.loading = true
+    try {
+      const list = await global.notesStore.getAllNotes()
+      this.notes = list.map(n => ({
+        id: n.id,
+        displayTitle: buildTitle(n),
+        titleSegments: buildTitleSegments(n),
+        preview: buildPreview(n.content),
+        timeText: this.formatTime(n.updatedAt || n.createdAt || 0)
+      }))
+    } catch (e) {
+      console.log('[笔记] 加载失败:', e)
+      global.uiAdm.MessageBox('加载笔记失败')
+    }
+    this.loading = false
+  },
+
+  formatTime(ts) {
+    if (!ts) return ''
+    const d = new Date(ts)
+    const now = new Date()
+    const pad = (n) => n.toString().padStart(2, '0')
+    const md = `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    if (d.toDateString() === now.toDateString()) return hm
+    return md + ' ' + hm
+  },
+
+  openNoteDetail(id) {
+    this.route('edit', { id, detail: true })
+  },
+
+  createNote() {
+    this.route('edit')
+  },
+
+  openNote(id) {
+    this.route('edit', { id: id })
+  },
+
+  // 连点三下删除：每次 1.2s 内再点才计数；超过自动归零
+  onDeleteTap(id) {
+    const self = this
+    if (this.pendingDeleteTimer) {
+      clearTimeout(this.pendingDeleteTimer)
+      this.pendingDeleteTimer = null
+    }
+    if (this.pendingDeleteId !== id) {
+      this.pendingDeleteId = id
+      this.pendingDeleteStep = 1
+      global.uiAdm.MessageBox('再点 2 次删除')
+    } else {
+      this.pendingDeleteStep += 1
+      if (this.pendingDeleteStep >= 3) {
+        // 触发删除
+        this.pendingDeleteId = null
+        this.pendingDeleteStep = 0
+        this.executeDelete(id)
+        return
+      } else if (this.pendingDeleteStep === 2) {
+        global.uiAdm.MessageBox('再点 1 次删除')
+      }
+    }
+    this.pendingDeleteTimer = setTimeout(() => {
+      self.pendingDeleteId = null
+      self.pendingDeleteStep = 0
+      self.pendingDeleteTimer = null
+    }, 1200)
+  },
+
+  async executeDelete(id) {
+    try {
+      await global.notesStore.deleteNote(id)
+      global.uiAdm.MessageBox('已删除')
+      await this.loadNotes()
+    } catch (e) {
+      console.log('[笔记] 删除失败:', e)
+      global.uiAdm.MessageBox('删除失败')
+    }
+  },
+
+  onBackPress() {
+    if (this.showAbout) { this.closeAbout(); return true }
+    if (this.showGlobalBgColor) { this.closeGlobalBgColor(); return true }
+    if (this.showGlobalDisplay) { this.closeGlobalDisplay(); return true }
+    if (this.showSettings) { this.closeSettings(); return true }
+    this.back(); return true
+  },
+
+  // ===== 全局设置 =====
+  openSettings() { this.showSettings = true },
+  closeSettings() { this.showSettings = false },
+  openGlobalDisplay() { this.showSettings = false; this.showGlobalDisplay = true },
+  closeGlobalDisplay() { this.showGlobalDisplay = false; this.showSettings = true },
+  openGlobalBgColor() {
+    this.tempGBgColor = this.gBgColor
+    this.showSettings = false
+    this.showGlobalBgColor = true
+  },
+  closeGlobalBgColor() { this.showGlobalBgColor = false; this.showSettings = true },
+  openAbout() { this.showSettings = false; this.showAbout = true },
+  closeAbout() { this.showAbout = false; this.showSettings = true },
+  selectGBgColor(value) { this.tempGBgColor = value },
+  confirmGBgColor() {
+    this.gBgColor = this.tempGBgColor
+    this.bgColor = this.tempGBgColor
+    storage.set({ key: 'gBgColor', value: this.tempGBgColor })
+    this.showGlobalBgColor = false
+    this.showSettings = true
+  },
+  setGFontScale(scale) {
+    this.gFontScale = scale
+    this.fontScale = scale
+    storage.set({ key: 'gFontScale', value: String(scale) })
+  },
+  toggleAnimEnabled() {
+    this.animEnabled = !this.animEnabled
+    storage.set({ key: 'animEnabled', value: String(this.animEnabled) })
+    global.AdmSet = this.animEnabled ? 1 : 0
+  },
+
+  onDestroy() {
+    if (this.pendingDeleteTimer) clearTimeout(this.pendingDeleteTimer)
+    global.uiAdm.unregisterPage(this.$page.name)
+  }
+}
+</script>
+
+<style>
+@import '../../common/css/loading.css';
+
+.note-item {
+  width: 90%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #2a2a2a;
+  border-radius: 20px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.note-main {
+  flex: 1;
+  margin-right: 8px;
+}
+.note-title {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  color: #ffffff;
+  font-weight: bold;
+}
+.note-preview {
+  font-size: 22px;
+  color: #9a9a9a;
+  margin-top: 4px;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.note-time {
+  font-size: 20px;
+  color: #6a6a6a;
+  margin-top: 6px;
+}
+.note-del {
+  width: 44px;
+  height: 44px;
+  font-size: 24px;
+  color: #ff6a6a;
+  text-align: center;
+  border-radius: 22px;
+  background-color: rgba(255, 77, 79, 0.15);
+  flex-shrink: 0;
+  font-weight: bold;
+}
+.note-del-warn {
+  background-color: #ff4d4f;
+  color: #ffffff;
+  font-size: 20px;
+}
+.create-btn {
+  width: 90%;
+  flex-direction: row;
+  background-color: #0c84ff;
+  border-radius: 20px;
+  padding: 16px 16px;
+  margin-top: 4px;
+}
+.create-text {
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: bold;
+  margin-left: 8px;
+}
+.create-icon {
+  font-size: 30px;
+  color: #ffffff;
+}
+.empty {
+  flex-direction: column;
+  margin-top: 80px;
+}
+.empty-text {
+  font-size: 28px;
+  color: #6a6a6a;
+}
+.empty-sub {
+  font-size: 22px;
+  color: #4a4a4a;
+  margin-top: 10px;
+}
+.menu-fullscreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  flex-direction: column;
+  z-index: 999;
+}
+.menu-card {
+  width: 90%;
+  flex-direction: row;
+  align-items: center;
+  background-color: #2a2a2a;
+  border-radius: 20px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.menu-card-title {
+  background-color: rgba(12, 132, 255, 0.12);
+}
+.menu-icon {
+  font-size: 30px;
+  color: #0c84ff;
+  margin-right: 12px;
+  font-weight: bold;
+}
+.menu-icon-back {
+  font-size: 34px;
+  color: #0c84ff;
+  margin-right: 12px;
+}
+.menu-card-text {
+  font-size: 28px;
+  color: #ffffff;
+  font-weight: bold;
+}
+.about-card {
+  width: 90%;
+  flex-direction: column;
+  background-color: #2a2a2a;
+  border-radius: 20px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.about-label {
+  font-size: 22px;
+  color: #9a9a9a;
+  margin-bottom: 8px;
+}
+.about-value {
+  font-size: 30px;
+  font-weight: bold;
+}
+.title-pill {
+  font-size: 26px;
+}
+.time-pill {
+  width: 16px;
+  height: 26px;
+  font-size: 22px;
+  transform-origin: 8px 13px;
+}
+.about-item {
+  font-size: 26px;
+  font-weight: bold;
+  margin-top: 8px;
+}
+.about-url {
+  font-size: 18px;
+  color: #6a6a6a;
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+.color-preview-card {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.color-preview-label {
+  font-size: 20px;
+  color: #6a6a6a;
+  margin-bottom: 6px;
+}
+.color-preview-text {
+  font-size: 28px;
+  font-weight: bold;
+}
+.color-grid {
+  width: 90%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  margin-top: 10px;
+  padding: 0 8px;
+}
+.color-item {
+  width: 60px;
+  height: 60px;
+  border-radius: 30px;
+  border-width: 2px;
+  border-color: #3a3a3a;
+  align-items: center;
+  justify-content: center;
+  margin: 12px;
+  flex-shrink: 0;
+}
+.color-item-active {
+  border-color: #ffffff;
+}
+.color-check {
+  font-size: 28px;
+  color: #ffffff;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+}
+@media screen and (shape: circle) {
+  .note-item,
+  .create-btn,
+  .menu-card,
+  .color-grid,
+  .about-card {
+    width: 80%;
+  }
+}
+@media screen and (shape: rect) {
+  .note-item,
+  .create-btn,
+  .menu-card,
+  .color-grid,
+  .about-card {
+    width: 92%;
+  }
+}
+.time-anim {
+  animation-name: timePulse;
+  animation-duration: 1500ms;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+@keyframes timePulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+</style>

@@ -1,0 +1,1707 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="container" style="position: relative; width: 100%; height: 100%; background-color: {{bgColor}}; color: {{bgTextColor}};">
+    <!-- 顶部栏 -->
+    <div class="header">
+      <div class="title title-clickable" @click="focusInput('title')">
+        <div for="{{(segIdx, seg) in titleSegments}}" class="field-content-seg-wrap">
+          <img if="{{seg.isEmoji}}" src="../../common/emoji/{{seg.code}}.png" style="width: {{emojiSize}}px; height: {{emojiSize}}px;" />
+          <text if="{{!seg.isEmoji}}" style="color: {{bgTextColor}}; background-color: {{seg.bg}}; font-weight: {{seg.weight}};">{{seg.text}}</text>
+        </div>
+        <text if="{{!displayTitle && currentField !== 'title'}}" style="color: {{bgTextColor}};">输入标题</text>
+        <text if="{{currentField === 'title' && showKeyboard}}" style="color: {{bgTextColor}};">|</text>
+      </div>
+      <text if="{{screenShape == 'rect'}}" class="title" style="color: {{bgTextColor}};" @click="openMenu">{{NowTime}}</text>
+    </div>
+
+    <!-- 内容区 -->
+    <div style="position: absolute; top: 76px; left: 0; right: 0; bottom: 0; flex-direction: column; overflow: hidden;">
+      <scroll scroll-y="true" bounces="true" id="mainScl" class="{{scrclass}}" style="flex: 1; width: 100%; flex-direction: column;">
+        <div id="content" class="field-box content-box {{currentField === 'content' ? 'field-active' : ''}}" @click="focusInput('content')">
+          <text class="field-label">正文</text>
+          <div class="field-content-wrap">
+            <div class="field-content-line" for="{{(lineIdx, line) in contentLines}}">
+              <div for="{{(segIdx, seg) in line}}" class="field-content-seg-wrap">
+                <img if="{{seg.isEmoji}}" src="../../common/emoji/{{seg.code}}.png" class="field-content-emoji" style="width: {{emojiSize}}px; height: {{emojiSize}}px;" />
+                <text if="{{!seg.isEmoji}}" class="field-content-seg" style="color: {{seg.color}}; background-color: {{seg.bg}}; font-size: {{contentFontSize}}px; font-weight: {{seg.weight}};">{{seg.text}}</text>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="height: {{showKeyboard ? 280 : 30}}px; flex-shrink: 0;"></div>
+      </scroll>
+    </div>
+
+    <!-- 表情包浮动按钮（键盘上方） -->
+    <div if="{{showKeyboard}}" @click="openEmojiPicker" style="position: absolute; right: 12px; bottom: {{kbHeight}}px; width: 56px; height: 56px; border-radius: 14px; background-color: #2a2a2a; border: 2px solid rgba(255,255,255,0.08); align-items: center; justify-content: center; z-index: 100;">
+      <img src="../../common/emoji/1f600.png" style="width: 36px; height: 36px;" />
+    </div>
+
+    <!-- 输入法 -->
+    <input-method
+      hide="{{!showKeyboard}}"
+      keyboardtype="{{keyboardtype}}"
+      maxlength="5"
+      vibratemode="{{vibratemode}}"
+      screentype="{{screentype}}"
+      @complete="onInputComplete"
+      @delete="onInputDelete"
+      @cursormove="onCursorMove"
+      @cursorselect="onCursorSelect"
+      @copy="onCopy"
+      @paste="onPaste"
+      @cut="onCut"
+      @selectall="onSelectAll"
+      @emoji="openEmojiPicker"
+    ></input-method>
+
+    <!-- 全屏菜单：编辑主菜单（布局严格同主页 note-item 风格） -->
+    <div if="{{showMenu}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">菜单</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeMenu">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white; margin-top: 6px;">
+          <div class="menu-card menu-card-title" @click="onViewTitle">
+            <text class="menu-icon">≡</text>
+            <text class="menu-card-text">查看完整标题</text>
+          </div>
+          <div class="menu-card" @click="onMenuSave">
+            <text class="menu-icon">✓</text>
+            <text class="menu-card-text">保存笔记</text>
+          </div>
+          <div class="menu-card menu-card-exit" @click="onMenuExit">
+            <text class="menu-icon-exit">✕</text>
+            <text class="menu-card-text-exit">退出编辑</text>
+          </div>
+          <div class="menu-card menu-card-delete {{pendingDeleteStep > 0 ? 'menu-card-delete-active' : ''}}" if="{{isEdit}}" @click="onMenuDelete">
+            <text class="menu-icon-delete">X</text>
+            <text class="menu-card-text-delete">{{pendingDeleteStep > 0 ? ('删除笔记 ' + pendingDeleteStep + '/3') : '删除笔记'}}</text>
+          </div>
+          <div class="menu-card" @click="goFromMenuToInputMenu">
+            <text class="menu-icon">S</text>
+            <text class="menu-card-text">输入设置</text>
+          </div>
+          <div class="menu-card" @click="openDisplayMenu">
+            <text class="menu-icon">D</text>
+            <text class="menu-card-text">显示设置</text>
+          </div>
+          <div class="menu-card" @click="closeMenu">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回编辑</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 输入设置菜单 -->
+    <div if="{{showInputMenu}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">输入设置</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeInputMenu">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white; margin-top: 6px;">
+          <div class="menu-card" @click="openKeyboardTypeMenu">
+            <text class="menu-icon">键</text>
+            <text class="menu-card-text">输入法类型</text>
+            <text class="menu-card-text" style="margin-left: auto; color: #9a9a9a; font-weight: normal; font-size: 24px;">{{keyboardTypeLabel}}</text>
+          </div>
+          <div class="menu-card" @click="toggleBoldInput">
+            <text class="menu-icon">B</text>
+            <text class="menu-card-text">粗体输入</text>
+            <text class="menu-card-text" style="margin-left: auto; color: #9a9a9a; font-weight: normal; font-size: 24px;">{{boldInput ? '开启' : '关闭'}}</text>
+          </div>
+          <div class="menu-card" @click="openColorPicker">
+            <text class="menu-icon">A</text>
+            <text class="menu-card-text">输入文字颜色</text>
+            <text class="menu-icon-preview" style="background-color: {{currentTextColor}};"></text>
+          </div>
+          <div class="menu-card" @click="openBgColorPicker">
+            <text class="menu-icon">背</text>
+            <text class="menu-card-text">输入背景颜色</text>
+            <text class="menu-icon-preview" style="background-color: {{currentBgColor}};"></text>
+          </div>
+          <div class="menu-card" @click="backToMainMenuFromInput">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回菜单</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 输入法类型选择菜单 -->
+    <div if="{{showKeyboardTypeMenu}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">输入法类型</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeKeyboardTypeMenu">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="margin-top: 6px;">
+          <div class="menu-card {{keyboardtype === 'QWERTY' ? 'menu-card-title' : ''}}" @click="setKeyboardType('QWERTY')">
+            <text class="menu-icon">26</text>
+            <text class="menu-card-text">26键全键盘</text>
+            <text if="{{keyboardtype === 'QWERTY'}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card {{keyboardtype === 'T9' ? 'menu-card-title' : ''}}" @click="setKeyboardType('T9')">
+            <text class="menu-icon">9</text>
+            <text class="menu-card-text">9键九宫格</text>
+            <text if="{{keyboardtype === 'T9'}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card" @click="closeKeyboardTypeMenu">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回输入设置</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 颜色选择界面 -->
+    <div if="{{showColorPicker}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">选择颜色</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeColorPicker">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white; margin-top: 6px;">
+          <div class="menu-card color-preview-card">
+            <text class="color-preview-label">预览</text>
+            <text class="color-preview-text" style="color: {{tempTextColor}};">文字颜色示例 Abc 123</text>
+          </div>
+          <div class="color-grid">
+            <div
+              for="{{(i, c) in presetColors}}"
+              class="color-item {{tempTextColor === c.value ? 'color-item-active' : ''}}"
+              style="background-color: {{c.value}};"
+              @click="pickColor(i)"
+            >
+              <text if="{{tempTextColor === c.value}}" class="color-check">✓</text>
+            </div>
+          </div>
+          <div class="menu-card menu-card-exit" @click="closeColorPicker">
+            <text class="menu-icon-exit">✕</text>
+            <text class="menu-card-text-exit">取消</text>
+          </div>
+          <div class="menu-card" @click="confirmColor">
+            <text class="menu-icon">✓</text>
+            <text class="menu-card-text">确认</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 输入背景颜色选择界面 -->
+    <div if="{{showBgColorPicker}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">输入背景颜色</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeBgColorPicker">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white; margin-top: 6px;">
+          <div class="menu-card color-preview-card">
+            <text class="color-preview-label">预览</text>
+            <text class="color-preview-text" style="background-color: {{tempInputBgColor}}; color: {{currentTextColor}}; padding: 4px 8px; border-radius: 8px;">背景颜色示例 Abc 123</text>
+          </div>
+          <div class="color-grid">
+            <div
+              for="{{(i, c) in inputBgColors}}"
+              class="color-item {{tempInputBgColor === c.value ? 'color-item-active' : ''}}"
+              style="background-color: {{c.value}};"
+              @click="pickInputBgColor(i)"
+            >
+              <text if="{{tempInputBgColor === c.value}}" class="color-check">✓</text>
+            </div>
+          </div>
+          <div class="menu-card menu-card-exit" @click="closeBgColorPicker">
+            <text class="menu-icon-exit">✕</text>
+            <text class="menu-card-text-exit">取消</text>
+          </div>
+          <div class="menu-card" @click="confirmInputBgColor">
+            <text class="menu-icon">✓</text>
+            <text class="menu-card-text">确认</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 显示设置菜单 -->
+    <div if="{{showDisplayMenu}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">显示设置</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeDisplayMenu">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white; margin-top: 6px;">
+          <div class="menu-card {{fontScale === 0.85 ? 'menu-card-title' : ''}}" @click="setFontScale(0.85)">
+            <text class="menu-icon">小</text>
+            <text class="menu-card-text">小号</text>
+            <text if="{{fontScale === 0.85}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card {{fontScale === 1.0 ? 'menu-card-title' : ''}}" @click="setFontScale(1.0)">
+            <text class="menu-icon">中</text>
+            <text class="menu-card-text">标准</text>
+            <text if="{{fontScale === 1.0}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card {{fontScale === 1.25 ? 'menu-card-title' : ''}}" @click="setFontScale(1.25)">
+            <text class="menu-icon">大</text>
+            <text class="menu-card-text">大号</text>
+            <text if="{{fontScale === 1.25}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card {{fontScale === 1.5 ? 'menu-card-title' : ''}}" @click="setFontScale(1.5)">
+            <text class="menu-icon">特</text>
+            <text class="menu-card-text">特大号</text>
+            <text if="{{fontScale === 1.5}}" class="menu-icon" style="margin-left: auto;">✓</text>
+          </div>
+          <div class="menu-card" @click="openBgColorMenu">
+            <text class="menu-icon">背</text>
+            <text class="menu-card-text">背景颜色</text>
+            <text class="menu-icon" style="margin-left: auto; color: #9a9a9a;">›</text>
+          </div>
+          <div class="menu-card" @click="closeDisplayMenu">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回菜单</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 背景颜色设置菜单 -->
+    <div if="{{showBgColorMenu}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">背景颜色</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeBgColorMenu">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white; margin-top: 6px;">
+          <div class="menu-card color-preview-card" style="background-color: {{bgColor}};">
+            <text class="color-preview-label">当前背景</text>
+            <text class="color-preview-text" style="color: {{bgTextColor}};">{{bgColor}}</text>
+          </div>
+          <div class="color-grid">
+            <div
+              for="{{(i, c) in bgColors}}"
+              class="color-item {{tempBgColor === c.value ? 'color-item-active' : ''}}"
+              style="background-color: {{c.value}};"
+              @click="selectBgColor(c.value)"
+            >
+              <text if="{{tempBgColor === c.value}}" class="color-check">✓</text>
+            </div>
+          </div>
+          <div class="menu-card menu-card-title" @click="confirmBgColor">
+            <text class="menu-icon">✓</text>
+            <text class="menu-card-text">确认更换</text>
+          </div>
+          <div class="menu-card" @click="closeBgColorMenu">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回显示设置</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 表情包选择界面 -->
+    <div if="{{showEmojiPicker}}" class="menu-fullscreen" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">表情</text>
+        <text class="title" style="color: {{bgTextColor}};" @click="closeEmojiPicker">{{NowTime}}</text>
+      </div>
+      <div class="full-area center">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}} full-area center" style="color: white; margin-top: 6px;">
+          <div class="emoji-grid">
+            <div
+              for="{{(i, code) in emojiList}}"
+              class="emoji-item"
+              @click="insertEmoji(code)"
+            >
+              <img src="../../common/emoji/{{code}}.png" class="emoji-img" />
+            </div>
+          </div>
+          <div class="menu-card" @click="closeEmojiPicker">
+            <text class="menu-icon-back">‹</text>
+            <text class="menu-card-text">返回编辑</text>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+    </div>
+
+    <!-- 详情模式 -->
+    <div if="{{showDetail}}" class="detail-overlay" style="background-color: {{bgColor}};">
+      <div class="header">
+        <text class="title" style="color: {{bgTextColor}};">详情</text>
+        <text class="title" style="color: {{bgTextColor}};">{{NowTime}}</text>
+      </div>
+      <div class="full-area" style="width: 100%; flex: 1;">
+        <scroll scroll-y="true" bounces="true" class="{{scrclass}}" style="width: 100%; flex: 1; padding: 14px 16px;">
+          <div class="detail-title">
+            <div for="{{(segIdx, seg) in titleSegments}}" style="flex-direction: row; align-items: center; flex-wrap: wrap;">
+              <img if="{{seg.isEmoji}}" src="../../common/emoji/{{seg.code}}.png" style="width: {{emojiSize}}px; height: {{emojiSize}}px;" />
+              <text if="{{!seg.isEmoji}}" style="color: {{bgTextColor}}; background-color: {{seg.bg}}; font-size: 30px; font-weight: {{seg.weight}};">{{seg.text}}</text>
+            </div>
+          </div>
+          <div class="detail-content">
+            <div class="field-content-line" for="{{(lineIdx, line) in contentLines}}">
+              <div for="{{(segIdx, seg) in line}}" class="field-content-seg-wrap">
+                <img if="{{seg.isEmoji}}" src="../../common/emoji/{{seg.code}}.png" class="field-content-emoji" style="width: {{emojiSize}}px; height: {{emojiSize}}px;" />
+                <text if="{{!seg.isEmoji}}" class="field-content-seg" style="color: {{seg.color}}; background-color: {{seg.bg}}; font-size: {{contentFontSize}}px; font-weight: {{seg.weight}};">{{seg.text}}</text>
+              </div>
+            </div>
+          </div>
+          <div class="bottomzw"></div>
+        </scroll>
+      </div>
+      <div class="detail-actions">
+        <div class="menu-card menu-card-title" @click="continueEditFromDetail">
+          <text class="menu-icon">✎</text>
+          <text class="menu-card-text">继续编辑</text>
+        </div>
+        <div class="menu-card menu-card-delete {{pendingDeleteStep > 0 ? 'menu-card-delete-active' : ''}}" @click="deleteFromDetail">
+          <text class="menu-icon-delete">X</text>
+          <text class="menu-card-text-delete">{{pendingDeleteStep > 0 ? ('删除笔记 ' + pendingDeleteStep + '/3') : '删除笔记'}}</text>
+        </div>
+        <div class="menu-card" @click="backFromDetail">
+          <text class="menu-icon-back">‹</text>
+          <text class="menu-card-text">返回</text>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标题详情弹窗 -->
+    <div if="{{showTitleView}}" class="title-mask" @click="closeTitleView">
+      <div class="title-panel">
+        <text class="title-view-label">完整标题</text>
+        <div class="title-view-text-wrap" style="flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: center;">
+          <div for="{{(si, seg) in fullTitleSegments}}" style="flex-direction: row; align-items: center;">
+            <img if="{{seg.isEmoji}}" src="../../common/emoji/{{seg.code}}.png" style="width: 36px; height: 36px; margin: 0 2px;" />
+            <text if="{{!seg.isEmoji}}" class="title-view-text">{{seg.text}}</text>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import prompt from '@system.prompt'
+import storage from '@system.storage'
+import { initKeyboard } from '../../common/js/useful.js'
+
+const DEFAULT_COLOR = '#e2e2e2'
+
+const PRESET_COLORS = [
+  { name: '浅灰', value: '#e2e2e2' },
+  { name: '纯白', value: '#ffffff' },
+  { name: '红色', value: '#ff6a6a' },
+  { name: '橙色', value: '#ffa940' },
+  { name: '黄色', value: '#ffec3d' },
+  { name: '绿色', value: '#52c41a' },
+  { name: '青色', value: '#13c2c2' },
+  { name: '蓝色', value: '#40a9ff' },
+  { name: '紫色', value: '#b37feb' },
+  { name: '粉色', value: '#ff85c0' },
+]
+
+const INPUT_BG_COLORS = [
+  { name: '无背景', value: 'transparent' },
+  { name: '红色', value: '#ff6a6a' },
+  { name: '橙色', value: '#ffa940' },
+  { name: '黄色', value: '#ffec3d' },
+  { name: '绿色', value: '#52c41a' },
+  { name: '青色', value: '#13c2c2' },
+  { name: '蓝色', value: '#40a9ff' },
+  { name: '紫色', value: '#b37feb' },
+  { name: '粉色', value: '#ff85c0' },
+  { name: '黑', value: '#1a1a1a' },
+  { name: '白', value: '#ffffff' },
+  { name: '灰', value: '#888888' },
+]
+
+const BG_COLORS = [
+  { name: '纯黑', value: '#000000', text: '#ffffff' },
+  { name: '深灰', value: '#1a1a1a', text: '#ffffff' },
+  { name: '墨蓝', value: '#0d1b2a', text: '#ffffff' },
+  { name: '深绿', value: '#0d1f14', text: '#ffffff' },
+  { name: '深棕', value: '#1f1410', text: '#ffffff' },
+  { name: '深紫', value: '#1a0d1f', text: '#ffffff' },
+  { name: '酒红', value: '#2a0d12', text: '#ffffff' },
+  { name: '浅灰', value: '#2a2a2a', text: '#ffffff' },
+  { name: '米白', value: '#f5f0e6', text: '#1a1a1a' },
+  { name: '浅蓝', value: '#e6f0f5', text: '#1a1a1a' },
+  { name: '浅绿', value: '#e6f5ec', text: '#1a1a1a' },
+  { name: '浅粉', value: '#f5e6ec', text: '#1a1a1a' },
+]
+
+// 表情包标记：\uE001 + 文件名 + \uE002
+const EMOJI_START = '\uE001'
+const EMOJI_END = '\uE002'
+
+const EMOJI_LIST = [
+  '1f600','1f601','1f602','1f603','1f604','1f605','1f606','1f607','1f608','1f609',
+  '1f60a','1f60b','1f60c','1f60d','1f60e','1f60f','1f610','1f611','1f612','1f613',
+  '1f614','1f615','1f616','1f617','1f618','1f619','1f61a','1f61b','1f61c','1f61d',
+  '1f61e','1f61f','1f620','1f621','1f622','1f623','1f624','1f625','1f626','1f627',
+  '1f628','1f629','1f62a','1f62b','1f62c','1f62d','1f62e-200d-1f4a8','1f62e','1f62f',
+  '1f630','1f631','1f632','1f633','1f634','1f635-200d-1f4ab','1f635','1f636-200d-1f32b-fe0f',
+  '1f636','1f637','1f638','1f639','1f63a','1f63b','1f63c','1f63d','1f63e','1f63f',
+  '1f640','1f641','1f642-200d-2194-fe0f','1f642-200d-2195-fe0f','1f642','1f643','1f644',
+  '1f910','1f911','1f912','1f913','1f914','1f915','1f916','1f917','1f920','1f921',
+  '1f922','1f923','1f924','1f925','1f927','1f928','1f929','1f92a','1f92b','1f92c',
+  '1f92d','1f92e','1f92f','1f970','1f971','1f972','1f973','1f974','1f975','1f976',
+  '1f978','1f979','1f981','1f9d1-200d-2695-fe0f','1f9d1','1f9d2','1f9d3',
+  '1f9d4-200d-2640-fe0f','1f9d4-200d-2642-fe0f','1f9d4',
+  '1fae0','1fae1','1fae2','1fae3','1fae4','1fae8','1fae9','1faea'
+]
+
+function buildContentLines(allChars, allColors, options) {
+  options = options || {}
+  const {
+    cursorAt = -1,
+    selStart = -1,
+    selEnd = -1,
+    showCursor = false,
+    placeholder = '',
+    placeholderActive = false,
+    cursorColor = '#0c84ff',
+    placeholderColor = '#5a5a5a',
+    allBgs = null,
+    allWeights = null
+  } = options
+
+  const lines = []
+  let currentLine = []
+
+  const addSeg = (text, color, bg, weight) => {
+    if (!text) return
+    const w = weight || 'normal'
+    const last = currentLine[currentLine.length - 1]
+    if (last && last.color === color && last.bg === bg && last.weight === w) {
+      last.text += text
+    } else {
+      currentLine.push({ text, color, bg, weight: w })
+    }
+  }
+
+  const finishLine = () => {
+    lines.push(currentLine.length > 0 ? currentLine : [])
+    currentLine = []
+  }
+
+  if (allChars.length === 0 && !placeholderActive) {
+    if (placeholder) {
+      currentLine.push({ text: placeholder, color: placeholderColor, bg: 'transparent', weight: 'normal' })
+      finishLine()
+    }
+    return lines
+  }
+
+  const addEmojiSeg = (code) => {
+    currentLine.push({ text: '', color: '', bg: 'transparent', weight: 'normal', isEmoji: true, code: code })
+  }
+
+  for (let i = 0; i < allChars.length; i++) {
+    if (i === selStart && selStart !== selEnd) addSeg('[', cursorColor, 'transparent', 'normal')
+    if (i === cursorAt && showCursor && selStart === selEnd) addSeg('|', cursorColor, 'transparent', 'normal')
+    if (allChars[i] === EMOJI_START) {
+      let code = ''
+      i++
+      while (i < allChars.length && allChars[i] !== EMOJI_END) {
+        code += allChars[i]
+        i++
+      }
+      addEmojiSeg(code)
+    } else if (allChars[i] === '\n') {
+      finishLine()
+    } else {
+      addSeg(allChars[i], allColors[i] || DEFAULT_COLOR, (allBgs && allBgs[i]) || 'transparent', (allWeights && allWeights[i]) || 'bold')
+    }
+    if ((i + 1) === selEnd && selStart !== selEnd) addSeg(']', cursorColor, 'transparent', 'normal')
+  }
+  if (cursorAt === allChars.length && showCursor && selStart === selEnd) addSeg('|', cursorColor, 'transparent', 'normal')
+  finishLine()
+  return lines
+}
+
+export default {
+  protected: {
+    id: null,
+    detail: false
+  },
+  private: {
+    NowTime: '--:--',
+    scrclass: '',
+    screenShape: 'rect',
+    noteId: null,
+    isEdit: false,
+    pageTitle: '新建笔记',
+    isDetail: false,
+    showDetail: false,
+    showKeyboard: false,
+    currentField: null,
+    textParts: { title: ['', ''], content: ['', ''] },
+    // 字符级颜色：和 textParts[field] 的 before/after 保持同步长度
+    textColors: {
+      title: [[], []],
+      content: [[], []]
+    },
+    anchor: null,
+    preferredColumn: -1,
+    keyboardtype: 'QWERTY',
+    vibratemode: 'short',
+    screentype: 'rect',
+    screenWidth: 336,
+    boldInput: false,
+    showMenu: false,
+    showKeyboardTypeMenu: false,
+    showInputMenu: false,
+    showColorPicker: false,
+    showDisplayMenu: false,
+    showBgColorMenu: false,
+    showEmojiPicker: false,
+    emojiList: EMOJI_LIST,
+    fontScale: 1.0,
+    bgColor: '#000000',
+    tempBgColor: '#000000',
+    bgColors: BG_COLORS,
+    currentTextColor: DEFAULT_COLOR,
+    tempTextColor: DEFAULT_COLOR,
+    currentBgColor: 'transparent',
+    tempInputBgColor: 'transparent',
+    inputBgColors: INPUT_BG_COLORS,
+    showBgColorPicker: false,
+    // 字符级背景颜色：和 textParts[field] 的 before/after 保持同步长度
+    textBgs: {
+      title: [[], []],
+      content: [[], []]
+    },
+    textWeights: {
+      title: [[], []],
+      content: [[], []]
+    },
+    fullTitle: '',
+    showTitleView: false,
+    presetColors: PRESET_COLORS,
+    menuNavigationStack: 'edit',
+    pendingDeleteStep: 0,
+    pendingDeleteTimer: null,
+  },
+
+  computed: {
+    displayTitle() {
+      const parts = this.textParts.title
+      if (!parts) return ''
+      const fullText = parts.join('')
+      if (!fullText && this.currentField !== 'title') return ''
+      return fullText
+    },
+
+    titleSegments() {
+      const parts = this.textParts.title
+      if (!parts) return []
+      const before = parts[0]
+      const after = parts[1]
+      const cbefore = this.textColors.title[0]
+      const cafter = this.textColors.title[1]
+      const bbefore = this.textBgs.title[0]
+      const bafter = this.textBgs.title[1]
+      const wbefore = this.textWeights.title[0]
+      const wafter = this.textWeights.title[1]
+      const allChars = (before + after).split('')
+      const allColors = cbefore.concat(cafter)
+      const allBgs = bbefore.concat(bafter)
+      const allWeights = wbefore.concat(wafter)
+      const segs = []
+      let cur = ''
+      let curColor = ''
+      let curBg = ''
+      let curWeight = ''
+      let total = 0
+      const maxLen = 4
+      const shouldTruncate = !this.showDetail
+      let truncated = false
+      const flush = () => {
+        if (cur) {
+          if (shouldTruncate && total + cur.length > maxLen) {
+            const remain = maxLen - total
+            if (remain > 0) {
+              segs.push({ text: cur.slice(0, remain) + '…', color: curColor, bg: curBg, weight: curWeight, isEmoji: false })
+            } else {
+              segs.push({ text: '…', color: curColor, bg: curBg, weight: curWeight, isEmoji: false })
+            }
+            cur = ''
+            total = maxLen
+            truncated = true
+            return false
+          }
+          segs.push({ text: cur, color: curColor, bg: curBg, weight: curWeight, isEmoji: false })
+          total += cur.length
+          cur = ''; curColor = ''; curBg = ''; curWeight = ''
+        }
+        return true
+      }
+      for (let i = 0; i < allChars.length; i++) {
+        if (allChars[i] === EMOJI_START) {
+          if (!flush()) break
+          let code = ''; i++
+          while (i < allChars.length && allChars[i] !== EMOJI_END) { code += allChars[i]; i++ }
+          if (shouldTruncate && total + 1 > maxLen) {
+            segs.push({ text: '…', color: '', bg: 'transparent', weight: 'normal', isEmoji: false })
+            truncated = true
+            break
+          }
+          segs.push({ text: '', color: '', bg: 'transparent', weight: 'normal', isEmoji: true, code: code })
+          total += 1
+        } else {
+          const c = allColors[i] || DEFAULT_COLOR
+          const b = allBgs[i] || 'transparent'
+          const w = allWeights[i] || 'bold'
+          if (cur && (curColor !== c || curBg !== b || curWeight !== w)) {
+            if (!flush()) break
+          }
+          cur += allChars[i]
+          curColor = c
+          curBg = b
+          curWeight = w
+          if (shouldTruncate && total + cur.length > maxLen) {
+            if (!flush()) break
+          }
+        }
+      }
+      flush()
+      return segs
+    },
+
+    fullTitleSegments() {
+      const parts = this.textParts.title
+      if (!parts) return []
+      const before = parts[0]
+      const after = parts[1]
+      const allChars = (before + after).split('')
+      const segs = []
+      let cur = ''
+      const flush = () => {
+        if (cur) { segs.push({ text: cur, isEmoji: false }); cur = '' }
+      }
+      for (let i = 0; i < allChars.length; i++) {
+        if (allChars[i] === EMOJI_START) {
+          flush()
+          let code = ''; i++
+          while (i < allChars.length && allChars[i] !== EMOJI_END) { code += allChars[i]; i++ }
+          segs.push({ isEmoji: true, code: code })
+        } else {
+          cur += allChars[i]
+        }
+      }
+      flush()
+      return segs
+    },
+
+    contentLines() {
+      if (!this.textParts || !this.textParts.content) return [[]]
+      const before = this.textParts.content[0]
+      const after = this.textParts.content[1]
+      const cbefore = this.textColors.content[0]
+      const cafter = this.textColors.content[1]
+      const allChars = (before + after).split('')
+      const allColors = cbefore.concat(cafter)
+      const bbefore = this.textBgs.content[0]
+      const bafter = this.textBgs.content[1]
+      const allBgs = bbefore.concat(bafter)
+      const wbefore = this.textWeights.content[0]
+      const wafter = this.textWeights.content[1]
+      const allWeights = wbefore.concat(wafter)
+
+      let cursorAt = -1, selStart = -1, selEnd = -1, showCursor = false
+      if (this.currentField === 'content') {
+        cursorAt = before.length
+        if (this.anchor !== null) {
+          selStart = Math.min(this.anchor, cursorAt)
+          selEnd = Math.max(this.anchor, cursorAt)
+        } else if (this.showKeyboard) {
+          showCursor = true
+        }
+      }
+      return buildContentLines(allChars, allColors, {
+        cursorAt, selStart, selEnd, showCursor,
+        placeholder: '点击输入',
+        placeholderActive: this.currentField === 'content',
+        allBgs: allBgs,
+        allWeights: allWeights
+      })
+    },
+    contentFontSize() { return Math.round(26 * this.fontScale) },
+    labelFontSize() { return Math.round(20 * this.fontScale) },
+    menuCardFontSize() { return Math.round(28 * this.fontScale) },
+    menuIconFontSize() { return Math.round(30 * this.fontScale) },
+    emojiSize() { return Math.round(30 * this.fontScale) },
+    keyboardTypeLabel() {
+      const labels = { QWERTY: '26键', T9: '9键' }
+      return labels[this.keyboardtype] || '26键'
+    },
+    kbHeight() {
+      if (this.screenWidth > 360) return 292;
+      return 262;
+    },
+    bgTextColor() {
+      const c = this.bgColors.find(item => item.value === this.bgColor)
+      return c ? c.text : '#ffffff'
+    }
+  },
+
+  async onInit() {
+    global.uiAdm.registerPage(this.$page.name, this)
+    const h = global.NowHour || '--'
+    const m = global.NowMin || '--'
+    this.NowTime = h + ':' + m
+    this.screenShape = (global.Screen && global.Screen.screenShape) || 'rect'
+    this.screentype = this.screenShape
+    this.screenWidth = (global.Screen && global.Screen.screenWidth) || 336
+
+    initKeyboard(this, 'mainScl')
+
+    const self = this
+    storage.get({
+      key: 'gFontScale',
+      success: (data) => { self.fontScale = parseFloat(data) || 1.0 },
+      fail: () => {}
+    })
+    storage.get({
+      key: 'gBgColor',
+      success: (data) => { if (data) { self.bgColor = data; self.tempBgColor = data } },
+      fail: () => {}
+    })
+    storage.get({
+      key: 'keyboardtype',
+      success: (data) => { if (data) self.keyboardtype = data },
+      fail: () => {}
+    })
+    storage.get({
+      key: 'boldInput',
+      success: (data) => { self.boldInput = data === 'true' },
+      fail: () => {}
+    })
+
+    const normalizeMeta = () => {
+      ['title', 'content'].forEach(f => {
+        const parts = self.textParts[f]
+        const cols = self.textColors[f]
+        const def = (f === 'title') ? DEFAULT_COLOR : self.currentTextColor
+        while (cols[0].length < parts[0].length) cols[0].push(def)
+        while (cols[0].length > parts[0].length) cols[0].pop()
+        while (cols[1].length < parts[1].length) cols[1].push(def)
+        while (cols[1].length > parts[1].length) cols[1].pop()
+        const bgs = self.textBgs[f]
+        const defBg = 'transparent'
+        while (bgs[0].length < parts[0].length) bgs[0].push(defBg)
+        while (bgs[0].length > parts[0].length) bgs[0].pop()
+        while (bgs[1].length < parts[1].length) bgs[1].push(defBg)
+        while (bgs[1].length > parts[1].length) bgs[1].pop()
+        const ws = self.textWeights[f]
+        const defWeight = 'bold'
+        while (ws[0].length < parts[0].length) ws[0].push(defWeight)
+        while (ws[0].length > parts[0].length) ws[0].pop()
+        while (ws[1].length < parts[1].length) ws[1].push(defWeight)
+        while (ws[1].length > parts[1].length) ws[1].pop()
+      })
+    }
+
+    // 强制触发视图更新
+    const refreshAll = () => {
+      const tp = self.textParts
+      self.textParts = {
+        title: [tp.title[0], tp.title[1]],
+        content: [tp.content[0], tp.content[1]]
+      }
+      const tc = self.textColors
+      self.textColors = {
+        title: [tc.title[0].slice(), tc.title[1].slice()],
+        content: [tc.content[0].slice(), tc.content[1].slice()]
+      }
+      const tb = self.textBgs
+      self.textBgs = {
+        title: [tb.title[0].slice(), tb.title[1].slice()],
+        content: [tb.content[0].slice(), tb.content[1].slice()]
+      }
+      const tw = self.textWeights
+      self.textWeights = {
+        title: [tw.title[0].slice(), tw.title[1].slice()],
+        content: [tw.content[0].slice(), tw.content[1].slice()]
+      }
+    }
+
+    // 包装原键盘回调：在原逻辑执行后，同步维护 textColors
+    const origInputComplete = this.onInputComplete
+    this.onInputComplete = function (evt) {
+      const field = this.currentField
+      const contentBefore = (this.textParts[field][0]).length
+      origInputComplete.call(this, evt)
+      const addedStr = (evt.detail && evt.detail.content) || ''
+      const color = (field === 'title') ? DEFAULT_COLOR : this.currentTextColor
+      const cols = this.textColors[field][0]
+      const bg = (field === 'title') ? 'transparent' : this.currentBgColor
+      const bgs = this.textBgs[field][0]
+      const weight = this.boldInput ? 'bold' : 'normal'
+      const ws = this.textWeights[field][0]
+      for (let i = 0; i < addedStr.length; i++) { cols.push(color); bgs.push(bg); ws.push(weight) }
+      normalizeMeta.call(this)
+      refreshAll.call(this)
+      if (addedStr.indexOf('\n') !== -1) {
+        this.scrollFieldIntoView()
+      }
+    }
+
+    const origInputDelete = this.onInputDelete
+    this.onInputDelete = function () {
+      const field = this.currentField
+      const parts = this.textParts[field]
+      const cols = this.textColors[field]
+      const bgs = this.textBgs[field]
+      const ws = this.textWeights[field]
+      const selection = this.getSelectedText ? this.getSelectedText() : null
+
+      if (selection) {
+        origInputDelete.call(this)
+        const allColorsBefore = cols[0].concat(cols[1])
+        const allBgsBefore = bgs[0].concat(bgs[1])
+        const allWeightsBefore = ws[0].concat(ws[1])
+        cols[0] = allColorsBefore.slice(0, parts[0].length)
+        cols[1] = allColorsBefore.slice(allColorsBefore.length - parts[1].length)
+        bgs[0] = allBgsBefore.slice(0, parts[0].length)
+        bgs[1] = allBgsBefore.slice(allBgsBefore.length - parts[1].length)
+        ws[0] = allWeightsBefore.slice(0, parts[0].length)
+        ws[1] = allWeightsBefore.slice(allWeightsBefore.length - parts[1].length)
+      } else {
+        const before = parts[0]
+        if (before.length > 0 && before[before.length - 1] === EMOJI_END) {
+          const startIdx = before.lastIndexOf(EMOJI_START)
+          if (startIdx !== -1) {
+            const markerLen = before.length - startIdx
+            parts[0] = before.slice(0, startIdx)
+            cols[0].splice(startIdx, markerLen)
+            bgs[0].splice(startIdx, markerLen)
+            ws[0].splice(startIdx, markerLen)
+          } else {
+            origInputDelete.call(this)
+            while (cols[0].length > parts[0].length) cols[0].pop()
+            while (bgs[0].length > parts[0].length) bgs[0].pop()
+            while (ws[0].length > parts[0].length) ws[0].pop()
+          }
+        } else {
+          origInputDelete.call(this)
+          while (cols[0].length > parts[0].length) cols[0].pop()
+          while (bgs[0].length > parts[0].length) bgs[0].pop()
+          while (ws[0].length > parts[0].length) ws[0].pop()
+        }
+      }
+      normalizeMeta.call(this)
+      refreshAll.call(this)
+    }
+
+    const origCursorMove = this.onCursorMove
+    this.onCursorMove = function (evt) {
+      const field = this.currentField
+      const parts = this.textParts[field]
+      const cols = this.textColors[field]
+      const bgs = this.textBgs[field]
+      const ws = this.textWeights[field]
+      const beforeLen0 = parts[0].length
+      origCursorMove.call(this, evt)
+      const beforeLen1 = parts[0].length
+      if (beforeLen1 < beforeLen0) {
+        const n = beforeLen0 - beforeLen1
+        const moved = cols[0].splice(cols[0].length - n, n)
+        cols[1] = moved.concat(cols[1])
+        const movedB = bgs[0].splice(bgs[0].length - n, n)
+        bgs[1] = movedB.concat(bgs[1])
+        const movedW = ws[0].splice(ws[0].length - n, n)
+        ws[1] = movedW.concat(ws[1])
+      } else if (beforeLen1 > beforeLen0) {
+        const n = beforeLen1 - beforeLen0
+        for (let i = 0; i < n; i++) {
+          if (cols[1].length > 0) cols[0].push(cols[1].shift())
+          if (bgs[1].length > 0) bgs[0].push(bgs[1].shift())
+          if (ws[1].length > 0) ws[0].push(ws[1].shift())
+        }
+      }
+      normalizeMeta.call(this)
+      refreshAll.call(this)
+    }
+
+    const simpleWrap = (fn) => function (evt) {
+      fn.call(this, evt)
+      normalizeMeta.call(this)
+      refreshAll.call(this)
+    }
+    this.onCursorSelect = simpleWrap(this.onCursorSelect)
+    this.onCopy = simpleWrap(this.onCopy)
+
+    const origSelectAll = this.onSelectAll
+    this.onSelectAll = function (evt) {
+      const field = this.currentField
+      const cols = this.textColors[field]
+      const bgs = this.textBgs[field]
+      const ws = this.textWeights[field]
+      const allColors = cols[0].concat(cols[1])
+      const allBgs = bgs[0].concat(bgs[1])
+      const allWeights = ws[0].concat(ws[1])
+      origSelectAll.call(this, evt)
+      cols[0] = allColors
+      cols[1] = []
+      bgs[0] = allBgs
+      bgs[1] = []
+      ws[0] = allWeights
+      ws[1] = []
+      normalizeMeta.call(this)
+      refreshAll.call(this)
+    }
+
+    const origPaste = this.onPaste
+    this.onPaste = function () {
+      if (!global.paste || !global.paste.text) return
+      const field = this.currentField
+      const pasteText = global.paste.text
+      const color = (field === 'title') ? DEFAULT_COLOR : this.currentTextColor
+      const bg = (field === 'title') ? 'transparent' : this.currentBgColor
+      const weight = this.boldInput ? 'bold' : 'normal'
+      const parts = this.textParts[field]
+      const cols = this.textColors[field]
+      const bgs = this.textBgs[field]
+      const ws = this.textWeights[field]
+      const selection = this.getSelectedText ? this.getSelectedText() : null
+      if (selection) {
+        const allColorsBefore = cols[0].concat(cols[1])
+        const allBgsBefore = bgs[0].concat(bgs[1])
+        const allWeightsBefore = ws[0].concat(ws[1])
+        const start = selection.start
+        const end = selection.end
+        origPaste.call(this)
+        const nb = []
+        const nbg = []
+        const nw = []
+        for (let i = 0; i < start; i++) { nb.push(allColorsBefore[i] || color); nbg.push(allBgsBefore[i] || bg); nw.push(allWeightsBefore[i] || weight) }
+        for (let i = 0; i < pasteText.length; i++) { nb.push(color); nbg.push(bg); nw.push(weight) }
+        cols[0] = nb
+        cols[1] = allColorsBefore.slice(end)
+        bgs[0] = nbg
+        bgs[1] = allBgsBefore.slice(end)
+        ws[0] = nw
+        ws[1] = allWeightsBefore.slice(end)
+      } else {
+        origPaste.call(this)
+        for (let i = 0; i < pasteText.length; i++) { cols[0].push(color); bgs[0].push(bg); ws[0].push(weight) }
+      }
+      normalizeMeta.call(this)
+      refreshAll.call(this)
+    }
+
+    const origCut = this.onCut
+    this.onCut = function () {
+      const field = this.currentField
+      const parts = this.textParts[field]
+      const cols = this.textColors[field]
+      const bgs = this.textBgs[field]
+      const ws = this.textWeights[field]
+      const selection = this.getSelectedText ? this.getSelectedText() : null
+      if (selection) {
+        const allColorsBefore = cols[0].concat(cols[1])
+        const allBgsBefore = bgs[0].concat(bgs[1])
+        const allWeightsBefore = ws[0].concat(ws[1])
+        origCut.call(this)
+        cols[0] = allColorsBefore.slice(0, parts[0].length)
+        cols[1] = allColorsBefore.slice(allColorsBefore.length - parts[1].length)
+        bgs[0] = allBgsBefore.slice(0, parts[0].length)
+        bgs[1] = allBgsBefore.slice(allBgsBefore.length - parts[1].length)
+        ws[0] = allWeightsBefore.slice(0, parts[0].length)
+        ws[1] = allWeightsBefore.slice(allWeightsBefore.length - parts[1].length)
+      } else {
+        origCut.call(this)
+        cols[0] = []
+        cols[1] = []
+        bgs[0] = []
+        bgs[1] = []
+        ws[0] = []
+        ws[1] = []
+      }
+      normalizeMeta.call(this)
+      refreshAll.call(this)
+    }
+
+    if (this.detail) {
+      this.isDetail = true
+      this.showDetail = false
+      this.showKeyboard = false
+      this.openMenu()
+    }
+
+    // 初始化
+    const id = this.id
+    if (id) {
+      this.noteId = id
+      this.isEdit = true
+      this.pageTitle = '编辑笔记'
+      try {
+        const note = await global.notesStore.getNote(id)
+        if (note) {
+          const t = note.title || ''
+          const c = note.content || ''
+          this.textParts = {
+            title: [t, ''],
+            content: [c, '']
+          }
+          // 标题颜色：优先取保存的字符级颜色；否则默认
+          let tcols
+          if (Array.isArray(note.titleColors) && note.titleColors.length === t.length) {
+            tcols = note.titleColors.slice()
+          } else {
+            tcols = []
+            for (let i = 0; i < t.length; i++) tcols.push(DEFAULT_COLOR)
+          }
+          // 正文颜色：优先取保存的字符级颜色；否则默认（兼容旧笔记）
+          let ccols
+          if (Array.isArray(note.contentColors) && note.contentColors.length === c.length) {
+            ccols = note.contentColors.slice()
+          } else {
+            ccols = []
+            for (let i = 0; i < c.length; i++) ccols.push(DEFAULT_COLOR)
+          }
+          this.textColors = {
+            title: [tcols, []],
+            content: [ccols, []]
+          }
+          // 字符级背景颜色：优先取保存的；否则默认 transparent（兼容旧笔记）
+          let tbgs
+          if (Array.isArray(note.titleBgs) && note.titleBgs.length === t.length) {
+            tbgs = note.titleBgs.slice()
+          } else {
+            tbgs = []
+            for (let i = 0; i < t.length; i++) tbgs.push('transparent')
+          }
+          let cbgs
+          if (Array.isArray(note.contentBgs) && note.contentBgs.length === c.length) {
+            cbgs = note.contentBgs.slice()
+          } else {
+            cbgs = []
+            for (let i = 0; i < c.length; i++) cbgs.push('transparent')
+          }
+          this.textBgs = {
+            title: [tbgs, []],
+            content: [cbgs, []]
+          }
+          let tws
+          if (Array.isArray(note.titleWeights) && note.titleWeights.length === t.length) {
+            tws = note.titleWeights.slice()
+          } else {
+            tws = []
+            for (let i = 0; i < t.length; i++) tws.push('bold')
+          }
+          let cws
+          if (Array.isArray(note.contentWeights) && note.contentWeights.length === c.length) {
+            cws = note.contentWeights.slice()
+          } else {
+            cws = []
+            for (let i = 0; i < c.length; i++) cws.push('bold')
+          }
+          this.textWeights = {
+            title: [tws, []],
+            content: [cws, []]
+          }
+          if (typeof note.fontScale === 'number') {
+            this.fontScale = note.fontScale
+          }
+          if (note.bgColor) {
+            this.bgColor = note.bgColor
+            this.tempBgColor = note.bgColor
+          }
+        }
+      } catch (e) {
+        console.log('[笔记] 读取失败:', e)
+        global.uiAdm.MessageBox('读取笔记失败')
+      }
+    }
+    normalizeMeta.call(this)
+  },
+
+  async saveNote() {
+    const title = this.textParts.title.join('')
+    const content = this.textParts.content.join('')
+
+    if (!title.trim() && !content.trim()) {
+      global.uiAdm.MessageBox('内容为空，未保存')
+      this.back()
+      return
+    }
+
+    try {
+      const titleColors = this.textColors.title[0].concat(this.textColors.title[1])
+      const contentColors = this.textColors.content[0].concat(this.textColors.content[1])
+      const titleBgs = this.textBgs.title[0].concat(this.textBgs.title[1])
+      const contentBgs = this.textBgs.content[0].concat(this.textBgs.content[1])
+      const titleWeights = this.textWeights.title[0].concat(this.textWeights.title[1])
+      const contentWeights = this.textWeights.content[0].concat(this.textWeights.content[1])
+      await global.notesStore.saveNote({
+        id: this.noteId,
+        title: title,
+        content: content,
+        titleColors: titleColors,
+        contentColors: contentColors,
+        titleBgs: titleBgs,
+        contentBgs: contentBgs,
+        titleWeights: titleWeights,
+        contentWeights: contentWeights,
+        fontScale: this.fontScale,
+        bgColor: this.bgColor
+      })
+      global.uiAdm.MessageBox(this.isEdit ? '已保存' : '已创建')
+      this.showKeyboard = false
+      this.back()
+    } catch (e) {
+      console.log('[笔记] 保存失败:', e)
+      global.uiAdm.MessageBox('保存失败')
+    }
+  },
+
+  // 连点三下删除：每次 1.2s 内再点才计数；超过自动归零
+  onMenuDelete() {
+    const self = this
+    if (this.pendingDeleteTimer) {
+      clearTimeout(this.pendingDeleteTimer)
+      this.pendingDeleteTimer = null
+    }
+    this.pendingDeleteStep += 1
+    if (this.pendingDeleteStep >= 3) {
+      this.pendingDeleteStep = 0
+      this.executeDelete()
+      return
+    } else if (this.pendingDeleteStep === 1) {
+      global.uiAdm.MessageBox('再点 2 次删除')
+    } else if (this.pendingDeleteStep === 2) {
+      global.uiAdm.MessageBox('再点 1 次删除')
+    }
+    this.pendingDeleteTimer = setTimeout(() => {
+      self.pendingDeleteStep = 0
+      self.pendingDeleteTimer = null
+    }, 1200)
+  },
+
+  async executeDelete() {
+    this.showMenu = false
+    try {
+      await global.notesStore.deleteNote(this.noteId)
+      global.uiAdm.MessageBox('已删除')
+      this.showKeyboard = false
+      this.back()
+    } catch (e) {
+      console.log('[笔记] 删除失败:', e)
+      global.uiAdm.MessageBox('删除失败')
+    }
+  },
+
+  // ===== 编辑主菜单 =====
+  openMenu() {
+    this.showKeyboard = false
+    const rawTitle = this.textParts.title.join('') || ''
+    let visibleLen = 0
+    for (let i = 0; i < rawTitle.length; i++) {
+      if (rawTitle[i] === EMOJI_START) {
+        visibleLen += 1
+        while (i < rawTitle.length && rawTitle[i] !== EMOJI_END) i++
+      } else {
+        visibleLen += 1
+      }
+    }
+    this.fullTitle = visibleLen > 4 ? rawTitle : ''
+    this.menuNavigationStack = 'edit'
+    this.showMenu = true
+  },
+  closeMenu() {
+    this.showMenu = false
+    // 关闭菜单时重置三连点删除状态，避免下次再打开还残留
+    if (this.pendingDeleteTimer) {
+      clearTimeout(this.pendingDeleteTimer)
+      this.pendingDeleteTimer = null
+    }
+    this.pendingDeleteStep = 0
+  },
+  onMenuSave() {
+    this.showMenu = false
+    this.showKeyboard = false
+    this.saveNote()
+  },
+  onMenuExit() {
+    this.showMenu = false
+    this.showKeyboard = false
+    this.back()
+  },
+  onViewTitle() { this.showTitleView = true },
+  closeTitleView() { this.showTitleView = false },
+
+  // ===== 主菜单跳转输入设置 =====
+  goFromMenuToInputMenu() {
+    this.menuNavigationStack = 'menu'
+    this.showMenu = false
+    this.showInputMenu = true
+  },
+  backToMainMenuFromInput() {
+    this.showInputMenu = false
+    this.showMenu = true
+  },
+
+  // ===== 输入设置菜单 =====
+  openInputMenu() {
+    this.menuNavigationStack = 'edit'
+    this.showInputMenu = true
+  },
+  closeInputMenu() {
+    if (this.menuNavigationStack === 'menu') {
+      this.showInputMenu = false
+      this.showMenu = true
+    } else {
+      this.showInputMenu = false
+    }
+  },
+
+  // ===== 颜色选择 =====
+  openColorPicker() {
+    this.tempTextColor = this.currentTextColor
+    this.showColorPicker = true
+  },
+  closeColorPicker() {
+    this.showColorPicker = false
+  },
+  pickColor(i) {
+    this.tempTextColor = PRESET_COLORS[i].value
+  },
+  confirmColor() {
+    this.currentTextColor = this.tempTextColor
+    this.showColorPicker = false
+  },
+
+  // ===== 输入法类型选择 =====
+  openKeyboardTypeMenu() {
+    this.showInputMenu = false
+    this.showKeyboardTypeMenu = true
+  },
+  closeKeyboardTypeMenu() {
+    this.showKeyboardTypeMenu = false
+    this.showInputMenu = true
+  },
+  setKeyboardType(type) {
+    this.keyboardtype = type
+    storage.set({ key: 'keyboardtype', value: type })
+    this.showKeyboardTypeMenu = false
+    this.showInputMenu = true
+    if (!this.showKeyboard) {
+      this.showKeyboard = true
+    }
+  },
+  toggleBoldInput() {
+    this.boldInput = !this.boldInput
+    storage.set({ key: 'boldInput', value: String(this.boldInput) })
+  },
+
+  // ===== 输入背景颜色选择 =====
+  openBgColorPicker() {
+    this.tempInputBgColor = this.currentBgColor
+    this.showColorPicker = false
+    this.showBgColorPicker = true
+  },
+  closeBgColorPicker() {
+    this.showBgColorPicker = false
+    this.showInputMenu = true
+  },
+  pickInputBgColor(i) {
+    this.tempInputBgColor = INPUT_BG_COLORS[i].value
+  },
+  confirmInputBgColor() {
+    this.currentBgColor = this.tempInputBgColor
+    this.showBgColorPicker = false
+    this.showInputMenu = true
+  },
+
+  // ===== 显示设置 =====
+  openDisplayMenu() {
+    this.menuNavigationStack = 'menu'
+    this.showMenu = false
+    this.showDisplayMenu = true
+  },
+  closeDisplayMenu() {
+    this.showDisplayMenu = false
+    this.showMenu = true
+  },
+  setFontScale(scale) {
+    this.fontScale = scale
+  },
+
+  // ===== 背景颜色 =====
+  openBgColorMenu() {
+    this.tempBgColor = this.bgColor
+    this.showDisplayMenu = false
+    this.showBgColorMenu = true
+  },
+  closeBgColorMenu() {
+    this.showBgColorMenu = false
+    this.showDisplayMenu = true
+  },
+  selectBgColor(value) {
+    this.tempBgColor = value
+  },
+  confirmBgColor() {
+    this.bgColor = this.tempBgColor
+    this.showBgColorMenu = false
+    this.showDisplayMenu = true
+  },
+
+  // ===== 表情包 =====
+  openEmojiPicker() {
+    if (!this.currentField) {
+      this.focusInput('content')
+    }
+    this.showKeyboard = false
+    this.showEmojiPicker = true
+  },
+  closeEmojiPicker() {
+    this.showEmojiPicker = false
+    if (this.currentField) {
+      this.showKeyboard = true
+    }
+  },
+  insertEmoji(code) {
+    const marker = EMOJI_START + code + EMOJI_END
+    const field = this.currentField || 'content'
+    this.textParts[field][0] += marker
+    const color = (field === 'title') ? DEFAULT_COLOR : 'emoji'
+    const bg = 'transparent'
+    const weight = 'bold'
+    for (let i = 0; i < marker.length; i++) {
+      this.textColors[field][0].push(color)
+      this.textBgs[field][0].push(bg)
+      this.textWeights[field][0].push(weight)
+    }
+    const tp = this.textParts
+    this.textParts = {
+      title: [tp.title[0], tp.title[1]],
+      content: [tp.content[0], tp.content[1]]
+    }
+    const tc = this.textColors
+    this.textColors = {
+      title: [tc.title[0].slice(), tc.title[1].slice()],
+      content: [tc.content[0].slice(), tc.content[1].slice()]
+    }
+    const tw = this.textWeights
+    this.textWeights = {
+      title: [tw.title[0].slice(), tw.title[1].slice()],
+      content: [tw.content[0].slice(), tw.content[1].slice()]
+    }
+    this.showEmojiPicker = false
+    if (this.currentField) {
+      this.showKeyboard = true
+    }
+  },
+
+  onBackPress() {
+    if (this.showEmojiPicker) { this.closeEmojiPicker(); return true }
+    if (this.showKeyboardTypeMenu) { this.closeKeyboardTypeMenu(); return true }
+    if (this.showBgColorPicker) { this.closeBgColorPicker(); return true }
+    if (this.showDisplayMenu) { this.closeDisplayMenu(); return true }
+    if (this.showBgColorMenu) { this.closeBgColorMenu(); return true }
+    if (this.showColorPicker) { this.closeColorPicker(); return true }
+    if (this.showInputMenu) { this.closeInputMenu(); return true }
+    if (this.isDetail && this.showMenu) { this.back(); return true }
+    if (this.showMenu) { this.closeMenu(); return true }
+    if (this.showTitleView) { this.showTitleView = false; return true }
+    this.toggleKeyboard(); return true
+  },
+  continueEditFromDetail() {
+    this.showDetail = false
+    this.isDetail = false
+    this.focusInput('content')
+  },
+  deleteFromDetail() {
+    this.onMenuDelete()
+  },
+  backFromDetail() {
+    this.back()
+  },
+  onDestroy() {
+    if (this.pendingDeleteTimer) clearTimeout(this.pendingDeleteTimer)
+    global.uiAdm.unregisterPage(this.$page.name)
+  }
+}
+</script>
+
+<style>
+@import '../../common/css/loading.css';
+
+/* —— 以下卡片尺寸严格对齐主页 .note-item —— */
+/*   width:90%, padding:14px 16px, margin-top:10px, border-radius:20px   */
+/*   文字 28px 粗体, 图标 30px                                           */
+
+.title-clickable {
+  flex: 1;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  font-weight: bold;
+  padding-left: 4px;
+}
+.field-box {
+  width: 100%;
+  flex-direction: column;
+  background-color: transparent;
+  border-radius: 0px;
+  padding: 14px 16px;
+  margin-top: 0px;
+  border-width: 0px;
+  border-color: transparent;
+}
+.field-active {
+  border-color: #0c84ff;
+  border-width: 0px;
+}
+.field-label {
+  font-size: 20px;
+  color: #6a6a6a;
+  margin-bottom: 6px;
+}
+.content-box {
+  min-height: 400px;
+}
+.field-content-wrap {
+  width: 100%;
+  flex-direction: column;
+}
+.field-content-line {
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 34px;
+}
+.field-content-seg {
+  font-size: 26px;
+}
+.field-content-seg-wrap {
+  flex-direction: row;
+  align-items: center;
+}
+.field-content-emoji {
+  width: 32px;
+  height: 32px;
+  margin: 0 1px;
+}
+
+@media screen and (shape: circle) {
+  .field-box { width: 80%; }
+}
+
+/* ===== 全屏菜单 ===== */
+.menu-fullscreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  flex-direction: column;
+  z-index: 999;
+}
+
+.menu-card {
+  width: 90%;
+  flex-direction: row;
+  align-items: center;
+  background-color: #2a2a2a;
+  border-radius: 20px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.menu-card-title {
+  background-color: rgba(12, 132, 255, 0.12);
+}
+.menu-card-exit {
+  background-color: rgba(255, 77, 79, 0.15);
+}
+.menu-card-delete {
+  background-color: rgba(255, 77, 79, 0.15);
+}
+.menu-card-delete-active {
+  background-color: #ff4d4f;
+}
+.menu-icon {
+  font-size: 30px;
+  color: #0c84ff;
+  margin-right: 12px;
+  font-weight: bold;
+}
+.menu-icon-exit {
+  font-size: 30px;
+  color: #ff6a6a;
+  margin-right: 12px;
+}
+.menu-icon-delete {
+  font-size: 30px;
+  color: #ff6a6a;
+  margin-right: 12px;
+}
+.menu-icon-back {
+  font-size: 34px;
+  color: #0c84ff;
+  margin-right: 12px;
+}
+.menu-card-text {
+  font-size: 28px;
+  color: #ffffff;
+  font-weight: bold;
+}
+.menu-card-text-exit {
+  font-size: 28px;
+  color: #ff6a6a;
+  font-weight: bold;
+}
+.menu-card-text-delete {
+  font-size: 28px;
+  color: #ff6a6a;
+  font-weight: bold;
+}
+.menu-icon-preview {
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  border-width: 1px;
+  border-color: #555555;
+  margin-left: auto;
+}
+
+/* ===== 颜色预览卡片 ===== */
+.color-preview-card {
+  flex-direction: column;
+  align-items: flex-start;
+  background-color: #2a2a2a;
+}
+.color-preview-label {
+  font-size: 20px;
+  color: #6a6a6a;
+  margin-bottom: 6px;
+}
+.color-preview-text {
+  font-size: 28px;
+  font-weight: bold;
+}
+.color-grid {
+  width: 90%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  margin-top: 10px;
+  padding: 0 8px;
+}
+.color-item {
+  width: 60px;
+  height: 60px;
+  border-radius: 30px;
+  border-width: 2px;
+  border-color: #3a3a3a;
+  margin: 8px 10px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.color-item-active {
+  border-color: #ffffff;
+}
+.color-check {
+  font-size: 28px;
+  color: #ffffff;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+}
+
+/* ===== 标题详情弹窗 ===== */
+.title-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.title-panel {
+  width: 90%;
+  background-color: #2a2a2a;
+  border-radius: 20px;
+  padding: 20px;
+}
+.title-view-label {
+  font-size: 20px;
+  color: #6a6a6a;
+  margin-bottom: 10px;
+}
+.title-view-text {
+  font-size: 28px;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* ===== 表情包选择 ===== */
+.emoji-grid {
+  width: 90%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 0 8px;
+}
+.emoji-item {
+  width: 22%;
+  height: 80px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  background-color: #2a2a2a;
+}
+.emoji-img {
+  width: 56px;
+  height: 56px;
+}
+
+.detail-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  flex-direction: column;
+  z-index: 1001;
+}
+.detail-title {
+  width: 100%;
+  margin-bottom: 16px;
+}
+.detail-content {
+  width: 100%;
+}
+.detail-actions {
+  width: 100%;
+  padding: 14px 16px;
+  flex-direction: column;
+  align-items: center;
+}
+
+@media screen and (shape: circle) {
+  .menu-card,
+  .color-grid,
+  .emoji-grid {
+    width: 80%;
+  }
+}
+</style>
